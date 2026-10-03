@@ -1,0 +1,77 @@
+# xianyu-pilot-pro fork 自构建推送 workflow
+# 用法：fork 仓库后，将本文件放到 .github/workflows/build-push.yml，
+# 推送 main 分支或手动触发 workflow_dispatch 即可在 GitHub Actions 免费构建 5 个镜像并推送到 ghcr.io
+# 前置：仓库 Settings -> Actions -> General -> Workflow permissions 设为 Read and write permissions
+name: Build & Push Images
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+
+concurrency:
+  group: build-push
+  cancel-in-progress: true
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Login to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Lowercase owner
+        id: lower
+        run: echo "owner=$(echo '${{ github.repository_owner }}' | tr '[:upper:]' '[:lower:]')" >> "$GITHUB_OUTPUT"
+
+      - name: Build automation image (用于 automation 与 automation-worker)
+        uses: docker/build-push-action@v6
+        with:
+          context: apps/automation-service
+          file: apps/automation-service/Dockerfile
+          push: true
+          tags: ghcr.io/${{ steps.lower.outputs.owner }}/xpilot-automation:latest
+
+      - name: Build crawler image (用于 crawler-service 与 crawler-worker)
+        uses: docker/build-push-action@v6
+        with:
+          context: apps/crawler-service
+          file: apps/crawler-service/Dockerfile
+          push: true
+          tags: ghcr.io/${{ steps.lower.outputs.owner }}/xpilot-crawler:latest
+
+      - name: Build backend image (core-api)
+        uses: docker/build-push-action@v6
+        with:
+          context: apps/core-api
+          file: apps/core-api/Dockerfile
+          push: true
+          tags: ghcr.io/${{ steps.lower.outputs.owner }}/xpilot-backend:latest
+
+      - name: Build admin-web image
+        uses: docker/build-push-action@v6
+        with:
+          context: apps/admin-web
+          file: apps/admin-web/Dockerfile
+          push: true
+          tags: ghcr.io/${{ steps.lower.outputs.owner }}/xpilot-admin-web:latest
+
+      - name: Build user-web image
+        uses: docker/build-push-action@v6
+        with:
+          context: apps/user-web
+          file: apps/user-web/Dockerfile
+          push: true
+          tags: ghcr.io/${{ steps.lower.outputs.owner }}/xpilot-user-web:latest
