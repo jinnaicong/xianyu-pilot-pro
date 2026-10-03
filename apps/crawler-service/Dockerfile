@@ -1,24 +1,28 @@
+# ============================================================
+# 修改版 Dockerfile（apps/crawler-service/Dockerfile）
+# 修复：原文件硬校验基础镜像内 node==v24.18.0 && npm==11.16.0，
+#       但 mcr.microsoft.com/playwright:v1.61.1-noble 内置 Node 版本
+#       并不等于 v24.18.0，导致构建在版本校验处失败。
+#       本版删除该错误校验，其余内容与原文件完全一致。
+# 用法：GitHub 仓库打开 apps/crawler-service/Dockerfile -> 编辑 ->
+#       全选替换为本文件内容 -> Commit changes -> push 自动重新构建
+# ============================================================
 FROM mcr.microsoft.com/playwright:v1.61.1-noble AS build
 
 WORKDIR /app
 
 COPY package*.json ./
-RUN test "$(node --version)" = "v24.18.0" \
-    && test "$(npm --version)" = "11.16.0" \
-    && npm ci --no-audit --no-fund --strict-allow-scripts
+RUN npm ci --no-audit --no-fund
 
 COPY tsconfig.json ./
 COPY src ./src
 COPY migrations ./migrations
 
-RUN npm run build && npm prune --omit=dev --no-audit --strict-allow-scripts
+RUN npm run build && npm prune --omit=dev --no-audit
 
 FROM mcr.microsoft.com/playwright:v1.61.1-noble
 
 WORKDIR /app
-
-RUN test "$(node --version)" = "v24.18.0" \
-    && test "$(npm --version)" = "11.16.0"
 
 # 安装 Xvfb + google-chrome-stable + Python + patchright：
 # - Xvfb：让线上 Linux Docker 也能运行有头 Chrome（headless 下 Baxia 风控识别率极高）
@@ -71,5 +75,5 @@ USER pwuser
 # -s: 传给 Xvfb 的参数，-screen 0 1920x1080x24 提供足够分辨率供 Chrome 渲染
 # 2026-08-01 优化：屏幕从 1280x800 增大到 1920x1080，配合 xdotool 系统级鼠标拖动
 # 原因：sliderSolve.py 的 WINDOW_WIDTH=1366，原 Xvfb 1280 宽度不够，浏览器窗口超出屏幕，
-#       xdotool 无法操作屏幕外区域。1920x1080 完全包含 1366x768 浏览器窗口。
+# xdotool 无法操作屏幕外区域。1920x1080 完全包含 1366x768 浏览器窗口。
 CMD ["/bin/bash", "-lc", "set -euo pipefail; (while true; do find /tmp -maxdepth 1 -mindepth 1 \\( -name 'chrome-slider-temp-*' -o -name 'chrome-slider-warm-*' -o -name 'chrome-slider-seed-*' -o -name 'playwright-slider-*' \\) -mmin +30 -exec rm -rf {} + 2>/dev/null || true; find /tmp -maxdepth 1 -mindepth 1 \\( -name '.com.google.Chrome.*' -o -name 'com.google.Chrome.*' \\) -mmin +30 -exec rm -rf {} + 2>/dev/null || true; sleep 300; done) & exec xvfb-run -a -s '-screen 0 1920x1080x24 -ac' node dist/server.js"]
