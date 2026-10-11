@@ -1,4 +1,8 @@
 FROM node:24.18.0-alpine AS build
+ARG VITE_API_URL=/admin-api
+ARG VITE_ACCESS_MODE=frontend
+ENV VITE_API_URL=$VITE_API_URL
+ENV VITE_ACCESS_MODE=$VITE_ACCESS_MODE
 WORKDIR /app
 COPY package*.json ./
 RUN test "$(node --version)" = "v24.18.0" \
@@ -6,6 +10,7 @@ RUN test "$(node --version)" = "v24.18.0" \
     && npm ci --no-audit --no-fund --strict-allow-scripts
 COPY . .
 RUN npm run build
+
 
 FROM nginxinc/nginx-unprivileged:1.30.3-alpine
 COPY --from=build --chown=101:101 /app/dist /usr/share/nginx/html
