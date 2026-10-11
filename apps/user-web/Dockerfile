@@ -1,4 +1,8 @@
 FROM node:24.18.0-alpine AS build
+ARG VITE_TERMS_URL=/terms.html
+ARG VITE_PRIVACY_URL=/privacy.html
+ENV VITE_TERMS_URL=$VITE_TERMS_URL
+ENV VITE_PRIVACY_URL=$VITE_PRIVACY_URL
 WORKDIR /app
 COPY package*.json ./
 RUN test "$(node --version)" = "v24.18.0" \
@@ -6,6 +10,7 @@ RUN test "$(node --version)" = "v24.18.0" \
     && npm ci --no-audit --no-fund --strict-allow-scripts
 COPY . .
 RUN npm run build
+
 
 FROM nginxinc/nginx-unprivileged:1.30.3-alpine
 COPY --from=build --chown=101:101 /app/dist /usr/share/nginx/html
